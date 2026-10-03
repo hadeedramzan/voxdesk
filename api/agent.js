@@ -65,7 +65,7 @@ async function groq(messages) {
 // Some model replies come back with the same answer written twice, sometimes in slightly different words
 // and with no space between. Keep only the first of any near-duplicate sentences.
 function dedupe(text) {
-  const t = String(text || "").trim();
+  const t = String(text || "").replace(/[\u202f\u00a0]/g, " ").trim();
   const parts = t.split(/(?<=[.!?])\s*(?=[A-Z0-9])/);
   if (parts.length < 2) return t;
   const STOP = new Set(["is", "the", "a", "an", "currently", "right", "now"]);
