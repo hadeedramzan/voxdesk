@@ -62,6 +62,19 @@ async function groq(messages) {
   return (await r.json()).choices[0].message;
 }
 
+// Some model replies come back with the same sentence repeated twice. Collapse exact repeats.
+function dedupe(text) {
+  const t = String(text || "").trim();
+  for (const sep of ["", " ", "\n"]) {
+    const rest = t.length - sep.length;
+    if (rest > 0 && rest % 2 === 0) {
+      const h = rest / 2;
+      if (t.slice(0, h) === t.slice(h + sep.length)) return t.slice(0, h);
+    }
+  }
+  return t;
+}
+
 export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
   const history = Array.isArray(req.body?.messages) ? req.body.messages.slice(-12) : [];
@@ -71,8 +84,8 @@ export default async function handler(req, res) {
     const messages = [{ role: "system", content: SYSTEM }, ...history.map((m) => ({ role: m.role, content: String(m.content).slice(0, 1000) }))];
     for (let i = 0; i < 3; i++) {
       const msg = await groq(messages);
-      if (!msg.tool_calls?.length) return res.status(200).json({ reply: msg.content || "Sorry, I could not answer that.", handoff });
-      messages.push({ role: "assistant", content: msg.content || "", tool_calls: msg.tool_calls });
+      if (!msg.tool_calls?.length) return res.status(200).json({ reply: dedupe(msg.content) || "Sorry, I could not answer that.", handoff });
+      messages.push({ role: "assistant", content: "", tool_calls: msg.tool_calls });
       for (const call of msg.tool_calls) {
         let result;
         try {
