@@ -24,12 +24,12 @@ const STATUS = {
 };
 const ring = "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-700";
 
-function Logo({ width = 44 }) {
+function Logo({ width = 44, active = false }) {
   return (
     <svg width={width} height={(width * 56) / 72} viewBox="0 0 72 56" role="img" aria-label="VoxDesk logo">
       <path d="M10 0H62A10 10 0 0 1 72 10V20A6 6 0 0 0 72 32V46A10 10 0 0 1 62 56H10A10 10 0 0 1 0 46V32A6 6 0 0 0 0 20V10A10 10 0 0 1 10 0Z" fill="#4338CA" />
       {[[16, 12], [26, 24], [36, 34], [46, 20], [56, 10]].map(([x, h]) => (
-        <rect key={x} x={x} y={28 - h / 2} width="5" height={h} rx="2.5" fill="#fff" />
+        <rect key={x} x={x} y={28 - h / 2} width="5" height={h} rx="2.5" fill="#fff" className={active ? "bar" : ""} style={{ animationDelay: `${x * 0.012}s` }} />
       ))}
     </svg>
   );
@@ -70,7 +70,7 @@ export default function App() {
   const endRef = useRef(null);
   const recRef = useRef(null);
 
-  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages]);
+  useEffect(() => { endRef.current?.scrollIntoView({ behavior: "smooth" }); }, [messages, busy]);
 
   function say(text) {
     if (!window.speechSynthesis) return;
@@ -121,19 +121,18 @@ export default function App() {
 
   return (
     <div className="mx-auto flex h-dvh max-w-2xl flex-col px-4 pb-4 pt-5">
-      <header className="flex items-center gap-3">
-        <Logo />
+      <header className="mb-3 flex items-center gap-3">
+        <Logo active={listening || busy || speaking} />
         <div>
           <h1 className="text-xl font-semibold leading-tight">VoxDesk</h1>
           <p className="text-sm text-slate-700">Voice support agent demo. Sample tickets 1042 to 1046; 9999 does not exist.</p>
         </div>
       </header>
-      <p className="mb-3 mt-2 text-xs text-slate-600">Fictional company. Handoff requests are logged but no human is contacted.</p>
 
       <main className="flex min-h-0 flex-1 flex-col">
         <div className="flex-1 space-y-4 overflow-y-auto rounded-xl border border-slate-200 bg-white p-4" aria-live="polite">
           {messages.map((m, i) => (
-            <div key={i} className={m.role === "user" ? "ml-auto max-w-[85%]" : "max-w-[90%]"}>
+            <div key={i} className={`msg-in ${m.role === "user" ? "ml-auto max-w-[85%]" : "max-w-[90%]"}`}>
               <p className={`rounded-2xl px-3.5 py-2 text-sm ${m.role === "user" ? "bg-indigo-700 text-white" : "bg-slate-100"}`}>{m.content}</p>
               {m.ticket && <TicketCard t={m.ticket} />}
               {m.role === "assistant" && (m.ms || m.handoff || m.sources?.length > 0) && (
@@ -145,6 +144,13 @@ export default function App() {
               )}
             </div>
           ))}
+          {busy && (
+            <div className="msg-in max-w-[90%]">
+              <p className="inline-flex gap-1 rounded-2xl bg-slate-100 px-3.5 py-3" aria-hidden="true">
+                {[0, 1, 2].map((i) => <span key={i} className="dot h-1.5 w-1.5 rounded-full bg-slate-500" style={{ animationDelay: `${i * 0.15}s` }} />)}
+              </p>
+            </div>
+          )}
           <div ref={endRef} />
         </div>
 
