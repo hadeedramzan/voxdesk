@@ -62,17 +62,25 @@ async function groq(messages) {
   return (await r.json()).choices[0].message;
 }
 
-// Some model replies come back with the same sentence repeated twice. Collapse exact repeats.
+// Some model replies come back with the same answer written twice, sometimes in slightly different words
+// and with no space between. Keep only the first of any near-duplicate sentences.
 function dedupe(text) {
   const t = String(text || "").trim();
-  for (const sep of ["", " ", "\n"]) {
-    const rest = t.length - sep.length;
-    if (rest > 0 && rest % 2 === 0) {
-      const h = rest / 2;
-      if (t.slice(0, h) === t.slice(h + sep.length)) return t.slice(0, h);
-    }
+  const parts = t.split(/(?<=[.!?])\s*(?=[A-Z0-9])/);
+  if (parts.length < 2) return t;
+  const STOP = new Set(["is", "the", "a", "an", "currently", "right", "now"]);
+  const words = (x) => new Set(x.toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w && !STOP.has(w)));
+  const kept = [];
+  for (const p of parts) {
+    const w = words(p);
+    const dup = kept.some((k) => {
+      const kw = words(k);
+      const inter = [...w].filter((x) => kw.has(x)).length;
+      return inter / (new Set([...w, ...kw]).size || 1) >= 0.75;
+    });
+    if (!dup) kept.push(p);
   }
-  return t;
+  return kept.join(" ");
 }
 
 export default async function handler(req, res) {
