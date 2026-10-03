@@ -87,27 +87,28 @@ export default async function handler(req, res) {
   if (req.method !== "POST") return res.status(405).end();
   const history = Array.isArray(req.body?.messages) ? req.body.messages.slice(-12) : [];
   if (!history.length) return res.status(400).json({ error: "messages required" });
-  let handoff = false;
+  let handoff = false, ticket = null;
+  const sources = [];
   try {
     const messages = [{ role: "system", content: SYSTEM }, ...history.map((m) => ({ role: m.role, content: String(m.content).slice(0, 1000) }))];
     for (let i = 0; i < 3; i++) {
       const msg = await groq(messages);
-      if (!msg.tool_calls?.length) return res.status(200).json({ reply: dedupe(msg.content) || "Sorry, I could not answer that.", handoff });
+      if (!msg.tool_calls?.length) return res.status(200).json({ reply: dedupe(msg.content) || "Sorry, I could not answer that.", handoff, ticket, sources });
       messages.push({ role: "assistant", content: "", tool_calls: msg.tool_calls });
       for (const call of msg.tool_calls) {
         let result;
         try {
           const a = JSON.parse(call.function.arguments || "{}");
           const name = call.function.name;
-          if (name === "get_ticket_status") result = await getTicket(a.ticket_id);
-          else if (name === "lookup_faq") result = lookupFaq(a.question);
+          if (name === "get_ticket_status") { result = await getTicket(a.ticket_id); if (result.found) { ticket = result; sources.push(`Ticket ${result.id}`); } }
+          else if (name === "lookup_faq") { result = lookupFaq(a.question); if (result.found) sources.push("FAQ"); }
           else if (name === "request_human_handoff") { result = await requestHandoff(a); handoff = true; }
           else result = { error: "unknown tool" };
         } catch (e) { result = { error: e.message }; }
         messages.push({ role: "tool", tool_call_id: call.id, content: JSON.stringify(result) });
       }
     }
-    res.status(200).json({ reply: "Sorry, I could not complete that.", handoff });
+    res.status(200).json({ reply: "Sorry, I could not complete that.", handoff, ticket, sources });
   } catch (e) {
     res.status(502).json({ error: e.message });
   }
